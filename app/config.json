@@ -7,9 +7,12 @@
     "singleImageGallery": false,
     "singleItemAutoOpen": true,
     "downloadOriginalPhoto": true,
-    "showGalleryTitle": false,
     "allowDownloadAll": 0,
     "showHomePage": true,
+    "showGalleryTitle": false,
+    "showMetadata": {
+      "description": false
+    },
     "customInvalidResponse": false
   },
   "lightGallery": {

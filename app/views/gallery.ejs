@@ -7,7 +7,7 @@
     // Add an og-image using the first image's thumbnail
     if (items?.[0]?.thumbnailUrl) {
     %>
-    <meta property="og:image" content="<%- items[0].thumbnailUrl %>"/>
+        <meta property="og:image" content="<%- items[0].thumbnailUrl %>"/>
     <% } %>
     <link rel="icon" href="/share/static/favicon.ico" type="image/x-icon">
     <link type="text/css" rel="stylesheet" href="/share/static/style.css"/>
@@ -61,36 +61,19 @@
     <%
     if (showDownload) {
     %>
-    <div id="download-all">
-        <a href="<%- path %>/download" title="Download all"><img src="/share/static/images/download-all.svg"
-                                                                                     height="24"
-                                                                                     width="24" alt="Download all"></a>
-    </div>
+        <div id="download-all">
+            <a href="<%- path %>/download" title="Download all"><img src="/share/static/images/download-all.svg"
+                                                                     height="24"
+                                                                     width="24" alt="Download all"></a>
+        </div>
     <% } %>
 </div>
 <div id="lightgallery">
     <%
     // Load the first 50 thumbnails, then load more as the user scrolls. See web.js
     items.slice(0, 50).forEach(item => {
-    if (item.video) { %>
-        <a data-video='<%- item.video %>' class="lg-item grid-item"
-        <% if (item.downloadUrl) { %>
-           data-download-url="<%- item.downloadUrl %>"
-                <% } %>
-        >
-            <img alt="" src="<%- item.thumbnailUrl %>"/>
-            <div class="play-icon"></div>
-        </a>
-    <% } else { %>
-        <a href="<%- item.previewUrl %>" class="lg-item grid-item"
-        <% if (item.downloadUrl) { %>
-           data-download-url="<%- item.downloadUrl %>"
-                <% } %>
-        >
-            <img alt="" src="<%- item.thumbnailUrl %>"/>
-        </a>
-    <% }
-    }) %>
+    %><%- item %>
+    <% }) %>
 </div>
 <script src="/share/static/web.js"></script>
 <script src="/share/static/lg/lightgallery.min.js"></script>
@@ -102,8 +85,12 @@
 <script src="/share/static/metafizzy/isotope.min.js"></script>
 <script src="/share/static/metafizzy/masonry.min.js"></script>
 <script type="text/javascript">
-  lgallery.init(<%- JSON.stringify({lgConfig, items, openItem}) %>) // initLightGallery imported from web.js
- <% if (openItem) { %>
+  lgallery.init(<%- JSON.stringify({
+      lgConfig,
+      items,
+      openItem
+  }) %>) // initLightGallery imported from web.js
+  <% if (openItem) { %>
   const openItem = <%- openItem %>
   const thumbs = document.querySelectorAll('#lightgallery a')
   if (thumbs.length >= openItem) {

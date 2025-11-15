@@ -2,9 +2,9 @@
 
 <p align="center" width="100%">
 <a href="https://hub.docker.com/r/alangrainger/immich-public-proxy/tags">
-    <img alt="Docker pulls" src="https://badgen.net/docker/pulls/alangrainger/immich-public-proxy?v1.10.0&icon=docker&label=docker%20pulls&color=green&scale=1.1"></a>
+    <img alt="Docker pulls" src="https://badgen.net/docker/pulls/alangrainger/immich-public-proxy?v1.11.1&icon=docker&label=docker%20pulls&color=green&scale=1.1"></a>
 <a href="https://github.com/alangrainger/immich-public-proxy/releases/latest">
-    <img alt="Latest release" src="https://badgen.net/github/release/alangrainger/immich-public-proxy?v1.10.0&scale=1.1"></a>
+    <img alt="Latest release" src="https://badgen.net/github/release/alangrainger/immich-public-proxy?v1.11.1&scale=1.1"></a>
 <a href="https://immich-demo.note.sx/share/gJfs8l4LcJJrBUpjhMnDoKXFt1Tm5vKXPbXl8BgwPtLtEBCOOObqbQdV5i0oun5hZjQ"><img alt="Open demo gallery" src="https://badgen.net/static/↗🖼️/live%20demo/green?scale=1.1"></a>
 </p>
 
@@ -148,6 +148,7 @@ There are some additional configuration options you can change, for example the 
 | `showGalleryTitle`      | `bool`   | Show a title on the gallery page.                                                                                                                                                                                                 |
 | `allowDownloadAll`      | `int`    | Allow visitors to download all files as a zip.<br>`0` disable downloads<br>`1` follow Immich setting per share ([example](https://github.com/user-attachments/assets/79ea8c08-71ce-42ab-b025-10aec384938a))<br>`2` always allowed |
 | `showHomePage`          | `bool`   | Set to `false` to remove the IPP shield page at `/` and at `/share`                                                                                                                                                               |
+| `showMetadata`          | `object` | See the [Metadata](#metadata) section below.                                                                                                                                                                                      |
 | `customInvalidResponse` | various  | Send a custom response instead of the default 404 - see [Custom responses](docs/custom-responses.md) for more details.                                                                                                            |
 
 For example, to disable the home page at `/` and at `/share` you need to change `showHomePage` to `false`:
@@ -159,9 +160,13 @@ For example, to disable the home page at `/` and at `/share` you need to change 
     ...
   }
 }
-
-
 ```
+
+#### Metadata
+
+| Option        | Type   | Description                                        |
+|---------------|--------|----------------------------------------------------|
+| `description` | `bool` | Show the description as a caption below the photo. |
 
 ### lightGallery
 
@@ -199,12 +204,22 @@ See [Custom responses](docs/custom-responses.md) for more details.
 
 ## Troubleshooting
 
+### Video playback
+
 If you're using Cloudflare and having issues with videos not playing well, make sure your `/share/video/` paths are set to bypass cache.
 I ran into this issue myself, and found [some helpful advice here](https://community.cloudflare.com/t/mp4-wont-load-in-safari-using-cloudflare/10587/48).
 
 <a href="docs/cloudflare-video-cache.webp"><img src="docs/cloudflare-video-cache.webp" style="width:70%"></a>
 
 I use Linux/Android, so this project is tested with BrowserStack for Apple/Windows devices.
+
+### Can't reach Immich using `localhost:2283`
+
+This is a normal Docker thing, nothing to do with IPP.
+
+From inside a Docker container, you can't reach another container using `localhost`. You need to use a Docker network IP or your server's IP address.
+
+[Here's a guide on connecting Docker containers](https://dionarodrigues.dev/blog/docker-networking-how-to-connect-different-containers).
 
 ## Feature requests
 

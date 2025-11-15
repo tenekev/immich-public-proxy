@@ -6,7 +6,9 @@ let config = {}
 try {
   const configJson = require(process.env.IPP_CONFIG || '../config.json')
   if (typeof configJson === 'object') config = configJson
-} catch (e) { }
+} catch (e) {
+  console.log(e)
+}
 
 /**
  * Get a configuration option fron config.json using dotted notation.

@@ -117,12 +117,22 @@ class Render {
         // Add a download link for the original-size image, if configured in config.json
         downloadUrl = immich.photoUrl(share.key, asset.id, ImageSize.original)
       }
-      items.push({
-        previewUrl: immich.photoUrl(share.key, asset.id, ImageSize.preview),
-        downloadUrl,
-        thumbnailUrl: baseUrl + immich.photoUrl(share.key, asset.id, ImageSize.thumbnail),
-        video
-      })
+
+      const thumbnailUrl = baseUrl + immich.photoUrl(share.key, asset.id, ImageSize.thumbnail)
+      const previewUrl = immich.photoUrl(share.key, asset.id, ImageSize.preview)
+      const description = getConfigOption('ipp.showMetadata.description', false) && typeof asset?.exifInfo?.description === 'string' ? asset.exifInfo.description.replace(/'/g, '&apos;') : ''
+
+      // Create the full HTML element source to pass to the gallery view
+      const itemHtml = [
+        video ? `<a data-video='${video}'` : `<a href="${previewUrl}"`,
+        downloadUrl ? ` data-download-url="${downloadUrl}"` : '',
+        description ? ` data-sub-html='<p>${description}</p>'` : '',
+        `><img alt="" src="${thumbnailUrl}"/>`,
+        video ? '<div class="play-icon"></div>' : '',
+        '</a>'
+      ].join('')
+
+      items.push(itemHtml)
     }
     res.render('gallery', {
       items,
