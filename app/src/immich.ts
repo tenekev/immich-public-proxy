@@ -5,6 +5,7 @@ import {
   AssetType,
   ImageSize,
   IncomingShareRequest,
+  KeyType,
   SharedLink,
   SharedLinkResult
 } from './types'
@@ -58,16 +59,15 @@ class Immich {
 
     // Check that the key is a valid format
     if (!immich.isKey(request.key)) {
-      log('Invalid share key ' + request.key)
-      respondToInvalidRequest(res, 404)
+      respondToInvalidRequest(res, 404, 'Wrong key format ' + request.key)
       return
     }
 
     // Get information about the shared link via Immich API
-    const sharedLinkRes = await immich.getShareByKey(request.key, request.password)
+    const sharedLinkRes = await immich.getShareByKey(request.key, request.password, request.keyType || KeyType.key)
     if (!sharedLinkRes.valid) {
       // This isn't a valid request - check the console for more information
-      respondToInvalidRequest(res, 404)
+      respondToInvalidRequest(res, 404, 'Invalid request')
       return
     }
 
@@ -99,8 +99,7 @@ class Immich {
     }
 
     if (!sharedLinkRes.link) {
-      log('Unknown error with key ' + request.key)
-      respondToInvalidRequest(res, 404)
+      respondToInvalidRequest(res, 404, 'Unknown error with key ' + request.key)
       return
     }
     const link = sharedLinkRes.link
@@ -142,10 +141,10 @@ class Immich {
    * Query Immich for the SharedLink metadata for a given key.
    * The key is what is returned in the URL when you create a share in Immich.
    */
-  async getShareByKey (key: string, password?: string): Promise<SharedLinkResult> {
+  async getShareByKey (key: string, password?: string, keyType: KeyType = KeyType.key): Promise<SharedLinkResult> {
     let link
     const url = this.buildUrl(this.apiUrl() + '/shared-links/me', {
-      key,
+      [keyType]: key,
       password
     })
     const res = await fetch(url)
@@ -155,12 +154,13 @@ class Immich {
         if (res.status === 200) {
           // Normal response - get the shared assets
           link = jsonBody as SharedLink
+          link.keyType = keyType
 
           // For an album, we need to make a second request to Immich to populate
           // the array of assets
           if (link.type === AlbumType.album) {
             const albumRes = await fetch(this.buildUrl(this.apiUrl() + '/albums/' + link?.album?.id, {
-              key,
+              [keyType]: key,
               password
             }))
             const album = await albumRes.json() as Album
@@ -184,6 +184,7 @@ class Immich {
             // Populate the shared assets with the public key/password
             link.assets.forEach(asset => {
               asset.key = key
+              asset.keyType = keyType
               asset.password = password
             })
             // Sort album if there is a sort order specified
@@ -232,7 +233,7 @@ class Immich {
    */
   async getVideoContentType (asset: Asset) {
     const data = await this.request(this.buildUrl('/assets/' + encodeURIComponent(asset.id) + '/video/playback', {
-      key: asset.key,
+      [asset.keyType]: asset.key,
       password: asset.password
     }))
     return data.headers.get('Content-Type')
@@ -252,6 +253,18 @@ class Immich {
       })).toString()
     }
     return baseUrl + query
+  }
+
+  /**
+   * Return the correct preview size, depending on the image MIME type
+   */
+  getPreviewImageSize (asset: Asset) {
+    // For certain media types, use the original file rather than the preview
+    if (['image/gif'].includes(asset.originalMimeType || '')) {
+      return ImageSize.original
+    } else {
+      return ImageSize.preview
+    }
   }
 
   /**
@@ -296,6 +309,10 @@ class Immich {
     } else {
       return size as ImageSize
     }
+  }
+
+  getKeyTypeFromShare (shareType: string) {
+    return shareType === 's' ? KeyType.slug : KeyType.key
   }
 }
 

@@ -5,6 +5,11 @@ export enum AssetType {
   video = 'VIDEO'
 }
 
+export enum KeyType {
+  key = 'key',
+  slug = 'slug'
+}
+
 export interface ExifInfo {
   description?: string;
 }
@@ -17,7 +22,9 @@ export enum AlbumType {
 export interface Asset {
   id: string;
   key: string;
+  keyType: KeyType;
   originalFileName?: string;
+  originalMimeType: string;
   password?: string;
   fileCreatedAt?: string; // May not exist - see https://github.com/alangrainger/immich-public-proxy/issues/61
   type: AssetType;
@@ -32,6 +39,7 @@ export interface Album {
 
 export interface SharedLink {
   key: string;
+  keyType: KeyType;
   type: string;
   description?: string;
   assets: Asset[];
@@ -61,6 +69,7 @@ export enum ImageSize {
 export interface IncomingShareRequest {
   req: Request;
   key: string;
+  keyType?: KeyType;
   password?: string;
   mode?: string;
   size?: ImageSize;

@@ -5,9 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <%
     // Add an og-image using the first image's thumbnail
-    if (items?.[0]?.thumbnailUrl) {
+    if (items?.[0]?.previewUrl) {
     %>
-        <meta property="og:image" content="<%- items[0].thumbnailUrl %>"/>
+        <meta property="og:title" content="<%- title %>">
+        <meta property="og:image" content="<%- publicBaseUrl %><%- items[0].previewUrl %>">
+        <meta name="twitter:title" content="<%- title %>">
+        <meta name="twitter:image" content="<%- publicBaseUrl %><%- items[0].previewUrl %>">
+        <meta name="twitter:card" content="summary_large_image">
     <% } %>
     <link rel="icon" href="/share/static/favicon.ico" type="image/x-icon">
     <link type="text/css" rel="stylesheet" href="/share/static/style.css"/>
@@ -72,9 +76,10 @@
     <%
     // Load the first 50 thumbnails, then load more as the user scrolls. See web.js
     items.slice(0, 50).forEach(item => {
-    %><%- item %>
+    %><%- item.html %>
     <% }) %>
 </div>
+<div id="loading-spinner"><span class="loader"></span></div>
 <script src="/share/static/web.js"></script>
 <script src="/share/static/lg/lightgallery.min.js"></script>
 <script src="/share/static/lg/lg-fullscreen.min.js"></script>

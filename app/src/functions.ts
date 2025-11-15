@@ -4,8 +4,13 @@ import { DownloadAll, SharedLink } from './types'
 
 let config = {}
 try {
-  const configJson = require(process.env.IPP_CONFIG || '../config.json')
-  if (typeof configJson === 'object') config = configJson
+  if (process.env.CONFIG) {
+    // Attempt to parse docker-compose config string into JSON (if specified)
+    config = JSON.parse(process.env.CONFIG)
+  } else {
+    const configJson = require(process.env.IPP_CONFIG || '../config.json')
+    if (typeof configJson === 'object') config = configJson
+  }
 } catch (e) {
   console.log(e)
 }

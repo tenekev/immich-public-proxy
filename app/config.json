@@ -7,7 +7,9 @@
     "singleImageGallery": false,
     "singleItemAutoOpen": true,
     "downloadOriginalPhoto": true,
+    "downloadedFilename": 0,
     "allowDownloadAll": 0,
+    "allowSlugLinks": true,
     "showHomePage": true,
     "showGalleryTitle": false,
     "showMetadata": {

@@ -4,6 +4,7 @@ import { Asset, AssetType, ImageSize, IncomingShareRequest, SharedLink } from '.
 import { canDownload, getConfigOption } from './functions'
 import archiver from 'archiver'
 import { respondToInvalidRequest } from './invalidRequestHandler'
+import { sanitize } from './includes/sanitize'
 
 class Render {
   lgConfig
@@ -16,6 +17,18 @@ class Render {
    * Stream data from Immich back to the client
    */
   async assetBuffer (req: IncomingShareRequest, res: Response, asset: Asset, size?: ImageSize | string) {
+    // Get meta info regarding the asset
+    const metaRes = await fetch(immich.buildUrl(immich.apiUrl() + '/assets/' + encodeURIComponent(asset.id), {
+      key: asset.key
+    }))
+    const meta = await metaRes.json()
+
+    // Make sure we should display this asset
+    if (meta.isTrashed || meta.visibility === 'locked') {
+      respondToInvalidRequest(res, 404, `Asset ${asset.id} is trashed or locked`)
+      return
+    }
+
     // Prepare the request
     const headerList = ['content-type', 'content-length', 'last-modified', 'etag']
     size = immich.validateImageSize(size)
@@ -49,7 +62,7 @@ class Render {
 
     // Request data from Immich
     const url = immich.buildUrl(immich.apiUrl() + '/assets/' + encodeURIComponent(asset.id) + subpath, {
-      key: asset.key,
+      [asset.keyType || 'key']: asset.key,
       size: sizeQueryParam,
       password: asset.password
     })
@@ -57,7 +70,7 @@ class Render {
 
     // Add the filename for downloaded assets
     if (size === ImageSize.original && asset.originalFileName && getConfigOption('ipp.downloadOriginalPhoto', true)) {
-      res.setHeader('Content-Disposition', `attachment; filename="${asset.originalFileName}"`)
+      res.setHeader('Content-Disposition', `attachment; filename="${this.getFilename(asset)}"`)
     }
 
     // Return the response to the client
@@ -75,7 +88,12 @@ class Render {
       )
       res.end()
     } else {
-      respondToInvalidRequest(res, 404)
+      let immichMessage = ''
+      try {
+        const json = await data.json()
+        if (json.message) immichMessage = '\nResponse from Immich: ' + json.message
+      } catch (e) { }
+      respondToInvalidRequest(res, 404, 'Failed response from Immich for asset ' + asset.id + ' on this URL:\n' + url + immichMessage)
     }
   }
 
@@ -87,16 +105,12 @@ class Render {
    * @param [openItem] - Immediately open a lightbox to the Nth item when the gallery loads
    */
   async gallery (res: Response, share: SharedLink, openItem?: number) {
-    const items = []
+    // publicBaseUrl is used for the og:image, which requires a fully qualified URL.
+    // You can specify this in your docker-compose file, or send it dynamically as a `publicBaseUrl` header
+    const publicBaseUrl = process.env.PUBLIC_BASE_URL || res.req.headers.publicBaseUrl || (res.req.protocol + '://' + res.req.headers.host)
 
-    // Originally I had the base URL as a config option in .env.
-    // The issue with that is people who may be wanting to route in via multiple
-    // public URLs. So instead we generate the base URL from the incoming request data.
-    // This may cause issues with some reverse proxies, in which case just make sure
-    // that you're sending the correct `host` header to IPP.
-    const baseUrl = res.req.protocol + '://' + res.req.headers.host
-
-    for (const asset of share.assets) {
+    // Use .map to generate an array of promises, then await them all to load in parallel.
+    const items = await Promise.all(share.assets.map(async (asset) => {
       let video, downloadUrl
       if (asset.type === AssetType.video) {
         // Populate the data-video property
@@ -118,8 +132,8 @@ class Render {
         downloadUrl = immich.photoUrl(share.key, asset.id, ImageSize.original)
       }
 
-      const thumbnailUrl = baseUrl + immich.photoUrl(share.key, asset.id, ImageSize.thumbnail)
-      const previewUrl = immich.photoUrl(share.key, asset.id, ImageSize.preview)
+      const thumbnailUrl = immich.photoUrl(share.key, asset.id, ImageSize.thumbnail)
+      const previewUrl = immich.photoUrl(share.key, asset.id, immich.getPreviewImageSize(asset))
       const description = getConfigOption('ipp.showMetadata.description', false) && typeof asset?.exifInfo?.description === 'string' ? asset.exifInfo.description.replace(/'/g, '&apos;') : ''
 
       // Create the full HTML element source to pass to the gallery view
@@ -127,17 +141,23 @@ class Render {
         video ? `<a data-video='${video}'` : `<a href="${previewUrl}"`,
         downloadUrl ? ` data-download-url="${downloadUrl}"` : '',
         description ? ` data-sub-html='<p>${description}</p>'` : '',
-        `><img alt="" src="${thumbnailUrl}"/>`,
+        ` data-download="${this.getFilename(asset)}"><img alt="" src="${thumbnailUrl}"/>`,
         video ? '<div class="play-icon"></div>' : '',
         '</a>'
       ].join('')
 
-      items.push(itemHtml)
-    }
+      return {
+        html: itemHtml,
+        thumbnailUrl,
+        previewUrl
+      }
+    }))
+
     res.render('gallery', {
       items,
       openItem,
       title: this.title(share),
+      publicBaseUrl,
       path: '/share/' + share.key,
       showDownload: canDownload(share),
       showTitle: getConfigOption('ipp.showGalleryTitle', false),
@@ -157,8 +177,9 @@ class Render {
    */
   async downloadAll (res: Response, share: SharedLink) {
     res.setHeader('Content-Type', 'application/zip')
-    const title = this.title(share).replace(/[^\w .-]/g, '') + '.zip'
-    res.setHeader('Content-Disposition', `attachment; filename="${title}"`)
+    let filename = (sanitize(this.title(share)) || 'photos') + '.zip'
+    filename = encodeURI(filename)
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${filename}`)
     const archive = archiver('zip', { zlib: { level: 6 } })
     archive.pipe(res)
     for (const asset of share.assets) {
@@ -172,10 +193,28 @@ class Render {
         console.warn(`Failed to fetch asset: ${asset.id}`)
         continue
       }
-      archive.append(Buffer.from(await data.arrayBuffer()), { name: asset.originalFileName || asset.id })
+      archive.append(Buffer.from(await data.arrayBuffer()), { name: this.getFilename(asset) })
     }
     await archive.finalize()
     archive.on('end', () => res.end())
+  }
+
+  /**
+   * Generate a filename for the downloaded asset based on the configuration option chosen
+   */
+  getFilename (asset: Asset) {
+    const extension = asset.originalFileName?.match(/(\.\w+)$/)?.[1] || ''
+    switch (getConfigOption('ipp.downloadedFilename')) {
+      case 1:
+        // Immich's ID number for this asset
+        return asset.id + extension
+      case 2:
+        // A sanitised version of the ID number
+        return 'img_' + asset.id.slice(0, 8) + extension
+      default:
+        // By default, it will choose the asset's original filename
+        return asset.originalFileName || (asset.id + extension)
+    }
   }
 }
 

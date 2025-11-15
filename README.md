@@ -2,9 +2,9 @@
 
 <p align="center" width="100%">
 <a href="https://hub.docker.com/r/alangrainger/immich-public-proxy/tags">
-    <img alt="Docker pulls" src="https://badgen.net/docker/pulls/alangrainger/immich-public-proxy?v1.11.1&icon=docker&label=docker%20pulls&color=green&scale=1.1"></a>
+    <img alt="Docker pulls" src="https://badgen.net/docker/pulls/alangrainger/immich-public-proxy?icon=docker&label=docker%20pulls&color=green&scale=1.1"></a>
 <a href="https://github.com/alangrainger/immich-public-proxy/releases/latest">
-    <img alt="Latest release" src="https://badgen.net/github/release/alangrainger/immich-public-proxy?v1.11.1&scale=1.1"></a>
+    <img alt="Latest release" src="https://badgen.net/github/release/alangrainger/immich-public-proxy?scale=1.1"></a>
 <a href="https://immich-demo.note.sx/share/gJfs8l4LcJJrBUpjhMnDoKXFt1Tm5vKXPbXl8BgwPtLtEBCOOObqbQdV5i0oun5hZjQ"><img alt="Open demo gallery" src="https://badgen.net/static/↗🖼️/live%20demo/green?scale=1.1"></a>
 </p>
 
@@ -31,6 +31,7 @@ Setup takes less than a minute, and you never need to touch it again as all of y
   - [IPP options](#immich-public-proxy-options)
   - [lightGallery](#lightgallery)
   - [Custom error pages](#customising-your-error-response-pages)
+  - [Serving from multiple domains](#serving-from-multiple-domains)
 - [Troubleshooting](#troubleshooting)
 - [Feature requests](#feature-requests)
 
@@ -58,7 +59,7 @@ To view a shared album in Immich, you need access to the `/api/` path. If you're
 to make that path public. Any existing or future vulnerability has the potential to compromise your Immich instance.
 
 For me, the ideal setup is to have Immich secured privately behind mTLS or VPN, and only allow public access to Immich Public Proxy.
-Here is an example setup for [securing Immich behind mTLS](./docs/securing-immich-with-mtls.md) using Caddy.
+Here is an example setup for [securing Immich behind mTLS](./docs/securing-immich-with-mtls.md) using a reverse proxy such as Caddy or Traefik.
 
 ## Installation
 
@@ -68,14 +69,20 @@ Here is an example setup for [securing Immich behind mTLS](./docs/securing-immic
 
 2. Update the value for `IMMICH_URL` in your docker-compose file to point to your local URL for Immich. This should not be a public URL.
 
-3. Start the docker container. You can test that it is working by visiting `https://your-proxy-url.com/healthcheck`. 
+3. Update or remove the value for `PUBLIC_BASE_URL`. This should be the public base URL for IPP, without a trailing slash (example `https://your-proxy-url.com`). 
+If you remove this value, it will dynamically generate it based on the request hostname. This can be useful if you are [serving from multiple domains](#serving-from-multiple-domains).
+
+4. _Optional_: Add `IPP_PORT` to environment variables in your docker-compose file to change the port from the default of 3000. 
+This is the _internal_ webserver port inside the container. Most people will not need to do this. Note that you will have to change the `ports` and `healthcheck` sections accordingly.
+
+5. Start the docker container. You can test that it is working by visiting `https://your-proxy-url.com/share/healthcheck`. 
 Check the container console output for any error messages.
 
 ```bash
 docker-compose up -d
 ```
 
-4. Set the "External domain" in your Immich **Server Settings** to be whatever domain you use to publicly serve Immich Public Proxy:
+5. Set the "External domain" in your Immich **Server Settings** to be whatever domain you use to publicly serve Immich Public Proxy:
 
 <img src="docs/server-settings.png" width="400" height="182">
 
@@ -84,7 +91,7 @@ Now whenever you share an image or gallery through Immich, it will automatically
 🚨 **IMPORTANT**: If you're using Cloudflare, please make sure to set your `/share/video/*` path to Bypass Cache, otherwise you may
 run into video playback issues. See [Troubleshooting](#troubleshooting) for more information.
 
-#### Running on a single domain
+#### Running alongside Immich on a single domain
 
 Because all IPP paths are under `/share/...`, you can run Immich Public Proxy and Immich on the same domain.
 
@@ -138,18 +145,22 @@ There are some additional configuration options you can change, for example the 
 
 3. Restart your container and your custom configuration should be active.
 
+Alternatively, you can [pass the configuration inline](docs/inline-configuration.md) from your `docker-compose.yml` file.
+
 ### Immich Public Proxy options
 
-| Option                  | Type     | Description                                                                                                                                                                                                                       |
-|-------------------------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `responseHeaders`       | `object` | Change the headers sent with your web responses. By default there is `cache-control` and CORS added.                                                                                                                              |
-| `singleImageGallery`    | `bool`   | By default a link to a single image will directly open the image file. Set to `true` if you want to show a gallery page instead for a single item.                                                                                |
-| `downloadOriginalPhoto` | `bool`   | Set to `false` if you only want people to be able to download the 'preview' quality photo, rather than your original photo.                                                                                                       |
-| `showGalleryTitle`      | `bool`   | Show a title on the gallery page.                                                                                                                                                                                                 |
-| `allowDownloadAll`      | `int`    | Allow visitors to download all files as a zip.<br>`0` disable downloads<br>`1` follow Immich setting per share ([example](https://github.com/user-attachments/assets/79ea8c08-71ce-42ab-b025-10aec384938a))<br>`2` always allowed |
-| `showHomePage`          | `bool`   | Set to `false` to remove the IPP shield page at `/` and at `/share`                                                                                                                                                               |
-| `showMetadata`          | `object` | See the [Metadata](#metadata) section below.                                                                                                                                                                                      |
-| `customInvalidResponse` | various  | Send a custom response instead of the default 404 - see [Custom responses](docs/custom-responses.md) for more details.                                                                                                            |
+| Option                  | Type     | Description                                                                                                                                                                                                                                                       |
+|-------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `responseHeaders`       | `object` | Change the headers sent with your web responses. By default there is `cache-control` and CORS added.                                                                                                                                                              |
+| `singleImageGallery`    | `bool`   | By default a link to a single image will directly open the image file. Set to `true` if you want to show a gallery page instead for a single item.                                                                                                                |
+| `downloadOriginalPhoto` | `bool`   | Set to `false` if you only want people to be able to download the 'preview' quality photo, rather than your original photo.                                                                                                                                       |
+| `downloadedFilename`    | `int`    | The filename of the downloaded image.<br>`0` for the original filename if available, falling back to the Immich asset ID<br>`1` for the Immich asset ID number<br>`2` for a sanitised version of the asset ID: `img_` plus the first 8 characters of the asset ID |
+| `showGalleryTitle`      | `bool`   | Show a title on the gallery page.                                                                                                                                                                                                                                 |
+| `allowDownloadAll`      | `int`    | Allow visitors to download all files as a zip.<br>`0` disable downloads<br>`1` follow Immich setting per share ([example](https://github.com/user-attachments/assets/79ea8c08-71ce-42ab-b025-10aec384938a))<br>`2` always allowed                                 |
+| `allowSlugLinks`        | `bool`   | Enable/disable the custom URL links.                                                                                                                                                                                                                              |
+| `showHomePage`          | `bool`   | Set to `false` to remove the IPP shield page at `/` and at `/share`                                                                                                                                                                                               |
+| `showMetadata`          | `object` | See the [Metadata](#metadata) section below.                                                                                                                                                                                                                      |
+| `customInvalidResponse` | various  | Send a custom response instead of the default 404 - see [Custom responses](docs/custom-responses.md) for more details.                                                                                                                                            |
 
 For example, to disable the home page at `/` and at `/share` you need to change `showHomePage` to `false`:
 
@@ -201,6 +212,14 @@ You can customise the responses that IPP sends for invalid requests. For example
 - And so on...
 
 See [Custom responses](docs/custom-responses.md) for more details.
+
+### Serving from multiple domains
+
+If you're serving the same IPP from multiple domains, instead of setting the public URL in your docker-compose file, you can set it dynamically via a HTTP header in the request from your reverse proxy to IPP.
+
+1. Remove the `PUBLIC_BASE_URL` environment variable from your docker-compose file.
+
+2. Set a custom `publicBaseUrl` header on each request with the value of your public base URL (example `https://your-proxy-url.com`).
 
 ## Troubleshooting
 

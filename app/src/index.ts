@@ -6,9 +6,9 @@ import immich from './immich'
 import crypto from 'crypto'
 import render from './render'
 import dayjs from 'dayjs'
-import { Request, Response, NextFunction } from 'express-serve-static-core'
-import { AssetType, ImageSize } from './types'
-import { log, toString, addResponseHeaders, getConfigOption } from './functions'
+import { NextFunction, Request, Response } from 'express-serve-static-core'
+import { Asset, AssetType, ImageSize, KeyType } from './types'
+import { addResponseHeaders, getConfigOption, toString } from './functions'
 import { decrypt, encrypt } from './encrypt'
 import { respondToInvalidRequest } from './invalidRequestHandler'
 
@@ -74,13 +74,21 @@ app.get(/^(|\/share)\/healthcheck$/, async (_req, res) => {
 /*
  * [ROUTE] This is the main URL that someone would visit if they are opening a shared link
  */
-app.get('/share/:key/:mode(download)?', decodeCookie, async (req, res) => {
-  await immich.handleShareRequest({
-    req,
-    key: req.params.key,
-    mode: req.params.mode,
-    password: req.password
-  }, res)
+app.get('/:shareType(share|s)/:key/:mode(download)?', decodeCookie, async (req, res) => {
+  const keyType = immich.getKeyTypeFromShare(req.params.shareType)
+
+  if (keyType === KeyType.slug && !getConfigOption('ipp.allowSlugLinks', true)) {
+    // Slug type links are not allowed
+    respondToInvalidRequest(res, 404, 'Slug links are disabled in config.json')
+  } else {
+    await immich.handleShareRequest({
+      req,
+      key: req.params.key,
+      keyType,
+      mode: req.params.mode,
+      password: req.password
+    }, res)
+  }
 })
 
 /*
@@ -107,37 +115,27 @@ app.get('/share/:type(photo|video)/:key/:id/:size?', decodeCookie, async (req, r
 
   // Check for valid key and ID
   if (!immich.isKey(req.params.key) || !immich.isId(req.params.id)) {
-    log('Invalid key or ID for ' + req.path)
-    respondToInvalidRequest(res, 404)
+    respondToInvalidRequest(res, 404, 'Invalid key or ID for ' + req.path)
     return
   }
 
   // Validate the size parameter
   if (req.params.size && !Object.values(ImageSize).includes(req.params.size as ImageSize)) {
-    log('Invalid size parameter ' + req.path)
-    respondToInvalidRequest(res, 404)
+    respondToInvalidRequest(res, 404, 'Invalid size parameter ' + req.path)
     return
   }
 
-  // Fetch the shared link information from Immich, so we can check to make sure that the requested asset
-  // is allowed by this shared link.
-  const sharedLink = (await immich.getShareByKey(req.params.key, req.password))?.link
   const request = {
     req,
     key: req.params.key,
     range: req.headers.range || ''
   }
-  if (sharedLink?.assets.length) {
-    // Check that the requested asset exists in this share
-    const asset = sharedLink.assets.find(x => x.id === req.params.id)
-    if (asset) {
-      asset.type = req.params.type === 'video' ? AssetType.video : AssetType.image
-      render.assetBuffer(request, res, asset, req.params.size).then()
-    }
-  } else {
-    log('No asset found for ' + req.path)
-    respondToInvalidRequest(res, 404)
-  }
+  const asset = {
+    id: req.params.id,
+    key: req.params.key,
+    type: req.params.type === 'video' ? AssetType.video : AssetType.image
+  } as Asset
+  render.assetBuffer(request, res, asset, req.params.size).then()
 })
 
 /*
@@ -160,8 +158,7 @@ if (getConfigOption('ipp.showHomePage', true)) {
  * Send a 404 for all other routes
  */
 app.get('*', (req, res) => {
-  log('Invalid route ' + req.path)
-  respondToInvalidRequest(res, 404)
+  respondToInvalidRequest(res, 404, 'Invalid route ' + req.path)
 })
 
 // Send the correct process error code for any uncaught exceptions

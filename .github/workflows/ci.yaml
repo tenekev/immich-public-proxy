@@ -42,6 +42,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Extract Docker image metadata
+        id: metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ github.repository }}
+
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -56,3 +62,4 @@ jobs:
             ${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:${{ env.PACKAGE_VERSION }}
             ghcr.io/${{ github.repository }}:latest
+          annotations: ${{ steps.metadata.output.annotations }}

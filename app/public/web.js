@@ -64,10 +64,13 @@ class LGallery {
       this.items
         .slice(this.index, this.index + PER_PAGE)
         .forEach(item => {
-          this.element.insertAdjacentHTML('beforeend', item)
+          this.element.insertAdjacentHTML('beforeend', item.html + '\n')
         })
       this.index += PER_PAGE
       this.lightGallery.refresh()
+    } else {
+      // Remove the loading spinner once all items are loaded
+      document.getElementById('loading-spinner')?.remove()
     }
   }
 }
